@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PharmStore - Premium Login</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* 🔥 PERFECTLY BALANCED & READABLE FRAME 🔥 */
+        .auth-wrapper {
+            height: auto;
+            max-height: 95vh;
+            width: 950px; /* Slightly wider to give text room to breathe */
+            border-radius: 20px;
+        }
+        
+        .auth-left, .auth-right {
+            padding: 40px 50px; /* Restored comfortable padding */
+            display: flex;
+            flex-direction: column;
+            justify-content: center; 
+            overflow: hidden; 
+        }
+        
+        .auth-tabs { margin-bottom: 25px !important; }
+        .auth-tab { padding: 12px; font-size: 1.05rem; }
+        
+        .floating-group { margin-bottom: 16px !important; }
+        
+        /* Restored inputs to standard, readable sizes */
+        .floating-group input { 
+            padding: 14px 15px; 
+            padding-top: 24px; 
+            font-size: 1rem; /* Back to normal readable size */
+            border-radius: 10px;
+        }
+        .floating-group label { top: 18px; left: 15px; font-size: 1rem; }
+        .floating-group input:focus + label, .floating-group input:not(:placeholder-shown) + label { 
+            top: 6px; 
+            font-size: 0.75rem; 
+            font-weight: 600;
+        }
+        .eye-icon { top: 16px; right: 15px; }
+        
+        /* Restored checklist readability */
+        .pwd-checklist { margin-bottom: 20px !important; font-size: 0.85rem; }
+        .pwd-checklist li { margin-bottom: 6px; }
+        
+        /* Restored large, clickable button */
+        .btn-primary { padding: 1rem !important; font-size: 1.1rem; }
+        
+        /* Restored clear, bold typography for the left panel */
+        h1#panelTitle { font-size: 2.5rem; margin-bottom: 10px; }
+        p#panelDesc { font-size: 1.05rem; line-height: 1.6; }
+    </style>
+</head>
+<body class="login-body">
+    <div class="auth-wrapper">
+        <div class="auth-left">
+            <h1 id="panelTitle">Welcome Back to PharmStore.</h1>
+            <p id="panelDesc">Access your dashboard, track orders, and securely manage your medical needs.</p>
+        </div>
+        <div class="auth-right">
+            <div class="auth-tabs" id="authTabs">
+                <div class="auth-tab active" id="tabLogin" onclick="setMode('login')">Login</div>
+                <div class="auth-tab" id="tabRegister" onclick="setMode('register')">Register</div>
+            </div>
+            <form id="authForm">
+                <div class="floating-group">
+                    <input type="text" id="username" placeholder=" " required minlength="4">
+                    <label>Username</label>
+                </div>
+                
+                <div id="registerFields" style="display: none;">
+                    <div class="floating-group">
+                        <input type="text" id="fullname" placeholder=" ">
+                        <label>Full Name</label>
+                    </div>
+                    <div class="floating-group">
+                        <input type="email" id="email" placeholder=" ">
+                        <label>Registered Email Address</label>
+                    </div>
+                    <div class="floating-group" id="mobileGroup">
+                        <input type="tel" id="mobile" placeholder=" " pattern="[0-9]{10}">
+                        <label>Mobile Number (10 digits)</label>
+                    </div>
+                </div>
+                
+                <div class="floating-group" style="margin-bottom: 1rem;">
+                    <input type="password" id="password" placeholder=" " required>
+                    <label id="pwdLabel">Password</label>
+                    <span class="eye-icon" onclick="togglePassword()" id="eyeIcon" style="color:#64748b;">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    </span>
+                </div>
+                
+                <ul class="pwd-checklist" id="pwdChecklist">
+                    <li id="req-len" class="invalid"><span class="icon"></span> At least 8 characters</li>
+                    <li id="req-up" class="invalid"><span class="icon"></span> One uppercase letter</li>
+                    <li id="req-num" class="invalid"><span class="icon"></span> One number</li>
+                    <li id="req-spc" class="invalid"><span class="icon"></span> One special character (@, $, #, etc.)</li>
+                </ul>
+                
+                <div class="form-extras" id="loginExtras">
+                    <label class="remember-me"><input type="checkbox" id="rememberMe"> Remember me</label>
+                    <a class="forgot-pwd" onclick="setMode('forgot')" style="cursor:pointer; color:var(--primary); font-weight:bold;">Forgot Password?</a>
+                </div>
+
+                <button type="submit" class="btn-primary" style="width: 100%; border-radius: 8px;" id="submitBtn">Login Securely</button>
+                
+                <div id="backToLogin" style="display: none; text-align: center; margin-top: 15px;">
+                    <a onclick="setMode('login')" style="cursor:pointer; color:var(--secondary); font-weight:600; font-size:0.9rem;">← Back to Login</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/shared.js"></script>
+    <script>
+        let currentMode = 'login'; 
+        let passwordIsValid = false; 
+        
+        const eyeOpenSVG = `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+        const eyeClosedSVG = `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('password').value = ""; document.getElementById('username').value = "";
+            document.getElementById('fullname').value = ""; document.getElementById('email').value = ""; 
+            document.getElementById('mobile').value = "";
+            
+            const tabs = document.getElementById('authTabs');
+            const regFields = document.getElementById('registerFields');
+            const loginExtras = document.getElementById('loginExtras');
+            const mobileGroup = document.getElementById('mobileGroup');
+            const pwdChecklist = document.getElementById('pwdChecklist');
+            const backBtn = document.getElementById('backToLogin');
+
+            if (mode === 'login') {
+                tabs.style.display = 'flex';
+                document.getElementById('tabLogin').classList.add('active');
+                document.getElementById('tabRegister').classList.remove('active');
+                document.getElementById('panelTitle').innerText = "Welcome Back to PharmStore.";
+                document.getElementById('panelDesc').innerText = "Access your dashboard, track orders, and securely manage your medical needs.";
+                document.getElementById('submitBtn').innerText = "Login Securely";
+                document.getElementById('pwdLabel').innerText = "Password";
+                loginExtras.style.display = 'flex';
+                regFields.style.display = 'none';
+                pwdChecklist.style.display = 'none';
+                backBtn.style.display = 'none';
+                document.getElementById('email').required = false;
+                document.getElementById('fullname').required = false;
+            } else if (mode === 'register') {
+                tabs.style.display = 'flex';
+                document.getElementById('tabLogin').classList.remove('active');
+                document.getElementById('tabRegister').classList.add('active');
+                document.getElementById('panelTitle').innerText = "Join PharmStore Today.";
+                document.getElementById('panelDesc').innerText = "Create an account to easily purchase medicines, upload prescriptions, and track deliveries.";
+                document.getElementById('submitBtn').innerText = "Create Account";
+                document.getElementById('pwdLabel').innerText = "Create Password";
+                loginExtras.style.display = 'none';
+                regFields.style.display = 'block';
+                mobileGroup.style.display = 'block';
+                pwdChecklist.style.display = 'block';
+                backBtn.style.display = 'none';
+                document.getElementById('email').required = true;
+                document.getElementById('fullname').required = true;
+                validatePassword(); 
+            } else if (mode === 'forgot') {
+                tabs.style.display = 'none';
+                document.getElementById('panelTitle').innerText = "Reset Password.";
+                document.getElementById('panelDesc').innerText = "Please verify your identity by entering your Username and Registered Email Address.";
+                document.getElementById('submitBtn').innerText = "Update Password";
+                document.getElementById('pwdLabel').innerText = "Enter New Password";
+                loginExtras.style.display = 'none';
+                regFields.style.display = 'block';
+                mobileGroup.style.display = 'none'; 
+                pwdChecklist.style.display = 'block';
+                backBtn.style.display = 'block';
+                document.getElementById('email').required = true;
+                document.getElementById('fullname').required = false;
+                validatePassword();
+            }
+        }
+
+        function togglePassword() {
+            const p = document.getElementById('password'); const eye = document.getElementById('eyeIcon');
+            if(p.type === "password") { p.type = "text"; eye.innerHTML = eyeClosedSVG; } 
+            else { p.type = "password"; eye.innerHTML = eyeOpenSVG; }
+        }
+
+        document.getElementById('password').addEventListener('input', function() { 
+            if(currentMode !== 'login') validatePassword(); 
+        });
+
+        function validatePassword() {
+            const val = document.getElementById('password').value;
+            const hasLen = val.length >= 8; const hasUp = /[A-Z]/.test(val); const hasNum = /[0-9]/.test(val); const hasSpc = /[^A-Za-z0-9]/.test(val);
+            document.getElementById('req-len').className = hasLen ? 'valid' : 'invalid';
+            document.getElementById('req-up').className = hasUp ? 'valid' : 'invalid';
+            document.getElementById('req-num').className = hasNum ? 'valid' : 'invalid';
+            document.getElementById('req-spc').className = hasSpc ? 'valid' : 'invalid';
+            passwordIsValid = (hasLen && hasUp && hasNum && hasSpc);
+        }
+
+        document.getElementById('authForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const userIn = document.getElementById('username').value.trim(); 
+            const passIn = document.getElementById('password').value;
+            const emailIn = document.getElementById('email').value.trim(); 
+            const fullNameIn = document.getElementById('fullname').value.trim();
+            const mobileIn = document.getElementById('mobile').value.trim();
+            const remember = document.getElementById('rememberMe').checked; 
+            const btn = document.getElementById('submitBtn');
+            
+            let users = await API.getUsers();
+            
+            const originalBtnText = btn.innerText;
+            btn.innerText = "Processing...";
+
+            setTimeout(async () => { 
+                if (currentMode === 'login') {
+                    const validUser = users.find(u => u.username === userIn && u.password === passIn);
+                    if (validUser) {
+                        const sessionData = { username: validUser.username, role: validUser.role };
+                        if (remember) localStorage.setItem('medSession', JSON.stringify(sessionData));
+                        else sessionStorage.setItem('medSession', JSON.stringify(sessionData));
+                        
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const redirectTo = urlParams.get('redirect');
+                        if (validUser.role === 'admin') window.location.href = 'dashboard.html';
+                        else if (redirectTo === 'cart') window.location.href = 'index.html?view=cart';
+                        else window.location.href = 'index.html';
+                    } else { btn.innerText = originalBtnText; showToast("Invalid Username or Password!", 'error'); }
+                
+                } else if (currentMode === 'register') {
+                    if (!passwordIsValid) { btn.innerText = originalBtnText; return showToast("Please fulfill all password requirements.", 'error'); }
+                    if (users.find(u => u.username === userIn)) { btn.innerText = originalBtnText; return showToast("Username already exists! Try another.", 'error'); }
+                    
+                    users.push({ username: userIn, fullName: fullNameIn, password: passIn, role: 'user', email: emailIn, mobile: mobileIn, addresses: [] });
+                    await API.saveUsers(users);
+                    sessionStorage.setItem('medSession', JSON.stringify({ username: userIn, role: 'user' }));
+                    showToast("Account created successfully!", 'success');
+                    setTimeout(() => window.location.href = 'index.html', 1500); 
+                
+                } else if (currentMode === 'forgot') {
+                    if (!passwordIsValid) { btn.innerText = originalBtnText; return showToast("Please fulfill all password requirements.", 'error'); }
+                    
+                    const targetUser = users.find(u => u.username === userIn && u.email === emailIn);
+                    if (!targetUser) { 
+                        btn.innerText = originalBtnText; 
+                        return showToast("No account matches that Username and Email.", 'error'); 
+                    }
+                    
+                    targetUser.password = passIn;
+                    await API.updateUser(targetUser);
+                    
+                    showToast("Password Reset Successfully!", 'success');
+                    setTimeout(() => setMode('login'), 1500); 
+                }
+            }, 800); 
+        });
+    </script>
+</body>
+</html>

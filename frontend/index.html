@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PharmStore - Premium E-Commerce</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .pay-inputs-row { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
+        .pay-input { width: 100%; padding: 15px; font-size: 1rem; border-radius: 10px; border: 1px solid var(--border); box-sizing: border-box; outline: none; font-family: inherit; }
+        .pay-input:focus { border-color: var(--primary); }
+        .address-card { border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: 0.2s; background: white; position: relative; }
+        .address-card.selected { border: 2px solid var(--primary); background: #f0fdfa; }
+        .address-card.selected::after { content: '✓ Default'; position: absolute; right: 15px; top: 15px; font-size: 0.7rem; background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; }
+        .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start; }
+        @media (max-width: 768px) { .profile-grid { grid-template-columns: 1fr; } .pay-inputs-row { flex-direction: column; } }
+        .card { will-change: transform; transform: translateZ(0); }
+        .qty-controls { display: flex; align-items: center; gap: 10px; }
+        .qty-btn { background: #f1f5f9; border: 1px solid var(--border); border-radius: 4px; width: 28px; height: 28px; cursor: pointer; font-weight: bold; }
+        .qty-btn:hover { background: var(--primary); color: white; }
+        .rx-label-small { color: var(--danger); font-weight: bold; font-size: 0.75rem; border: 1px solid var(--danger); padding: 2px 6px; border-radius: 4px; margin-left: 8px; background: #fee2e2; display: inline-block; white-space: nowrap; vertical-align: middle; }
+        .status-reason { font-size: 0.85rem; color: var(--danger); background: #fef2f2; padding: 10px; border-radius: 6px; margin-top: 10px; border-left: 3px solid var(--danger); }
+        .cart-badge { display: none; } 
+        .cart-badge.active { display: inline-block; }
+    </style>
+</head>
+<body>
+
+    <header class="top-nav">
+        <h2 onclick="showView('store-view')" style="cursor:pointer; display: flex; align-items: center; gap: 8px;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary);"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg> PharmStore
+        </h2>
+        <div class="nav-actions">
+            <span id="userInfo" style="font-weight: 600; color: var(--secondary); margin-right: 10px;"></span>
+            <button class="btn-ghost active-tab" id="nav-home" onclick="showView('store-view')">Home</button>
+            <button class="btn-ghost" onclick="showView('orders-view')" id="myOrdersBtn" style="display:none;">Orders</button>
+            <button class="btn-ghost" onclick="showView('profile-view')" id="myProfileBtn" style="display:none;">Profile</button>
+            <button class="btn-ghost" id="nav-cart" onclick="showView('cart-view')">Cart <span class="cart-badge" id="cartCount"></span></button>
+            <div id="authButtons" style="display: flex; align-items: center; gap: 5px; margin-left: 5px; padding-left: 15px; border-left: 1px solid var(--border);"></div>
+        </div>
+    </header>
+
+    <div class="container" style="min-height: 65vh;">
+        
+        <div id="store-view" class="view-section active">
+            <div class="hero-banner">
+                <div class="hero-text">
+                    <h1>Your Health, Delivered Fast.</h1>
+                    <p>100% Genuine Medicines | Secure Payments | Easy Prescription Upload</p>
+                </div>
+                <div class="hero-img">🚚</div>
+            </div>
+
+            <div class="modern-toolbar">
+                <div class="search-box">
+                    <input type="text" id="searchBar" placeholder="Search medicines, brands, or categories..." oninput="handleSearch()">
+                </div>
+                <div class="sort-box">
+                    <select id="sortFilter" onchange="renderStore()">
+                        <option value="default">Sort: Recommended</option>
+                        <option value="price-low">Price: Low to High</option>
+                        <option value="price-high">Price: High to Low</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="category-chips" id="catChipsContainer">
+                <button class="chip active" onclick="setCategory('All', this)">All Categories</button>
+                <button class="chip" onclick="setCategory('Fever & Pain', this)">Fever & Pain</button>
+                <button class="chip" onclick="setCategory('Cough & Cold', this)">Cough & Cold</button>
+                <button class="chip" onclick="setCategory('Antibiotics', this)">Antibiotics</button>
+                <button class="chip" onclick="setCategory('Diabetes', this)">Diabetes</button>
+                <button class="chip" onclick="setCategory('Heart Care', this)">Heart Care</button>
+                <button class="chip" onclick="setCategory('Blood Pressure', this)">Blood Pressure</button>
+            </div>
+
+            <div class="cards-grid" id="productGrid"></div>
+        </div>
+
+        <div id="cart-view" class="view-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h2 style="font-size: 2rem; font-weight:800;">Shopping Cart</h2>
+                <button class="btn-outline" onclick="showView('store-view')">← Continue Shopping</button>
+            </div>
+            <table id="cartTable">
+                <thead><tr><th>Medicine</th><th>Price</th><th>Quantity</th><th>Total</th><th>Action</th></tr></thead>
+                <tbody id="cartTableBody"></tbody>
+            </table>
+            <div style="display:flex; justify-content: flex-end; margin-top: 2.5rem;">
+                <div style="background: #f8fafc; padding: 2.5rem; border-radius: 16px; width: 450px; border: 1px solid var(--border);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 2px dashed var(--border);">
+                        <h3 style="margin:0; color: var(--secondary);">Subtotal:</h3> 
+                        <h3 style="margin:0; color: var(--text); font-size:1.5rem;">₹<span id="cartTotal">0.00</span></h3>
+                    </div>
+                    <button class="btn-primary" style="width: 100%; font-size: 1.2rem; padding: 1.2rem; box-shadow: 0 10px 20px rgba(15, 118, 110, 0.2);" onclick="openCheckout()">Secure Checkout</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="orders-view" class="view-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h2 style="font-size: 2rem; font-weight:800;">My Order History</h2>
+                <button class="btn-outline" onclick="showView('store-view')">← Back to Store</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead><tr><th>Order Details</th><th>Items & Payment</th><th>Total Paid</th><th>Status & Updates</th></tr></thead>
+                    <tbody id="userOrdersBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="profile-view" class="view-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h2 style="font-size: 2rem; font-weight:800;">Account Settings</h2>
+                <button class="btn-outline" onclick="showView('store-view')">← Back to Store</button>
+            </div>
+            <div class="profile-grid">
+                <div style="background: white; padding: 2.5rem; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid var(--border);">
+                    <h3 style="margin-bottom: 1.5rem; color: var(--primary);">👤 My Information</h3>
+                    <form id="profileForm">
+                        <div class="form-group" style="margin-bottom: 1.2rem;"><label>Username</label><input type="text" id="profUsername" disabled></div>
+                        <div class="form-group" style="margin-bottom: 1.2rem;"><label>Full Legal Name</label><input type="text" id="profFullName" required></div>
+                        <div class="form-group" style="margin-bottom: 1.2rem;"><label>Email Address</label><input type="email" id="profEmail" required></div>
+                        <div class="form-group" style="margin-bottom: 1.2rem;"><label>Mobile Number</label><input type="tel" id="profMobile" pattern="[0-9]{10}" required></div>
+                        <div class="form-group" style="margin-bottom: 2rem;"><label>Change Password (Optional)</label><input type="password" id="profPassword" placeholder="Enter new strong password..."></div>
+                        <button type="button" class="btn-primary" style="width:100%; padding:1rem;" onclick="saveProfile()">Update Profile</button>
+                    </form>
+                </div>
+                <div style="background: white; padding: 2.5rem; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid var(--border);">
+                    <h3 style="margin-bottom: 1.5rem; color: var(--primary);">📍 My Saved Addresses</h3>
+                    <p style="color:var(--secondary); font-size:0.9rem; margin-bottom: 1rem;">You can save up to 5 delivery addresses.</p>
+                    <div id="profileAddressList" style="margin-bottom: 1.5rem;"></div>
+                    <div class="form-group">
+                        <label>Add New Address</label>
+                        <textarea id="newProfileAddress" class="pay-input" rows="2" placeholder="E.g., Flat 204, Sector 5..."></textarea>
+                    </div>
+                    <button class="btn-outline" style="width:100%; margin-top:10px;" onclick="addNewAddress()">+ Save Address</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="modern-footer">
+        <div class="footer-grid">
+            <div class="footer-col">
+                <h3 style="display:flex; align-items:center; gap:8px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg> PharmStore
+                </h3>
+                <p style="color: #94a3b8;">Your trusted online pharmacy. 100% genuine medicines, healthcare products, and wellness essentials delivered safely.</p>
+                <div style="margin-top: 20px;">
+                    <p>📍 Silvassa, D.& N.H. ,India</p>
+                    <p>📞 +91 9512704768</p>
+                    <p>✉️ support@pharmstore.com</p>
+                </div>
+            </div>
+
+            <div class="footer-col">
+                <h3>Top Categories</h3>
+                <ul>
+                    <li><a href="#" onclick="setCategory('Fever & Pain', document.querySelectorAll('.chip')[1]); showView('store-view'); return false;">Fever & Pain</a></li>
+                    <li><a href="#" onclick="setCategory('Cough & Cold', document.querySelectorAll('.chip')[2]); showView('store-view'); return false;">Cough & Cold</a></li>
+                    <li><a href="#" onclick="setCategory('Antibiotics', document.querySelectorAll('.chip')[3]); showView('store-view'); return false;">Antibiotics</a></li>
+                    <li><a href="#" onclick="setCategory('Diabetes', document.querySelectorAll('.chip')[4]); showView('store-view'); return false;">Diabetes Care</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-col">
+                <h3>Quick Links</h3>
+                <ul>
+                    <li><a href="#" onclick="showView('store-view'); return false;">Shop All Medicines</a></li>
+                    <li><a href="#" onclick="showView('cart-view'); return false;">View Shopping Cart</a></li>
+                    <li><a href="#" onclick="if(!getSession()){showToast('Please Sign In first.', 'error');}else{showView('orders-view');} return false;">My Orders</a></li>
+                    <li><a href="#" onclick="if(!getSession()){showToast('Please Sign In first.', 'error');}else{showView('profile-view');} return false;">Account Settings</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-col">
+                <h3>Customer Support</h3>
+                <ul>
+                    <li><a href="#" onclick="showToast('Return Policy: Returns accepted within 7 days for unopened medicines.', 'info'); return false;">Return Policy</a></li>
+                    <li><a href="#" onclick="showToast('Free shipping on orders over ₹500!', 'success'); return false;">Shipping Info</a></li>
+                    <li><a href="#" onclick="showToast('For support, email us at support@pharmstore.com', 'info'); return false;">Help & FAQs</a></li>
+                    <li><a href="#" onclick="showToast('Privacy Policy: Your data is secure and used only for order processing.', 'info'); return false;">Privacy Policy</a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="footer-bottom">
+            <p>&copy; 2026 Parthiv Rathod. All Rights Reserved.</p>
+            
+            <div class="social-icons">
+                <a href="#" aria-label="Facebook" onclick="showToast('Coming soon!', 'info'); return false;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg></a>
+                <a href="#" aria-label="Twitter" onclick="showToast('Coming soon!', 'info'); return false;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"></path></svg></a>
+                <a href="#" aria-label="Instagram" onclick="showToast('Coming soon!', 'info'); return false;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg></a>
+            </div>
+
+            <div class="payment-badges">
+                <span style="margin-right: 8px; color:#94a3b8; font-size:0.85rem; font-weight:600;">Secure Checkout</span>
+                <div class="pay-badge-frame"><img src="https://img.icons8.com/color/96/000000/visa.png" alt="Visa"></div>
+                <div class="pay-badge-frame"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/MasterCard_Logo.svg/200px-MasterCard_Logo.svg.png" alt="Mastercard"></div>
+                <div class="pay-badge-frame"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/UPI-Logo-vector.svg/200px-UPI-Logo-vector.svg.png" alt="UPI"></div>
+            </div>
+        </div>
+    </footer>
+
+    <div id="quickViewModal" class="quickview-modal">
+        <div class="quickview-content">
+            <button class="close-qv-btn" onclick="document.getElementById('quickViewModal').style.display='none'">✕</button>
+            <div class="quickview-img-section"><img id="qvImg" src="" alt="Product Image" loading="lazy"></div>
+            <div class="quickview-details">
+                <h2 id="qvName" style="margin-bottom: 5px;">Medicine Name</h2>
+                <div id="qvRxContainer" style="margin-bottom: 5px;"></div>
+                <p class="mfg" id="qvMfg">By Manufacturer</p>
+                
+                <div style="font-size: 0.9rem; margin-bottom: 15px; color: var(--secondary);">
+                    <span id="qvStock"></span> | <span>Expiry: <strong id="qvExpiry"></strong></span>
+                </div>
+
+                <div style="display:flex; gap:15px; align-items:baseline; margin-bottom: 1.5rem;">
+                    <h1 style="color:var(--primary); margin:0; font-size:2.5rem;" id="qvPrice">₹0.00</h1>
+                    <span style="text-decoration:line-through; color:var(--secondary); font-size:1.2rem;" id="qvMrp"></span>
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: auto;">
+                    <button class="btn-outline" id="qvAddToCartBtn" style="flex: 1; padding: 1.2rem; font-size: 1.1rem;">Add to Cart</button>
+                    <button class="btn-primary" id="qvBuyNowBtn" style="flex: 1; padding: 1.2rem; font-size: 1.1rem;">Buy Now</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="checkoutModal" class="checkout-modal">
+        <div class="checkout-content">
+            <button onclick="document.getElementById('checkoutModal').style.display='none'" style="position:absolute; top:15px; right:15px; border:none; background:none; font-size:1.5rem; cursor:pointer; color:var(--secondary);">✕</button>
+            
+            <div id="step-rx" class="checkout-step">
+                <h2 style="color:var(--danger); margin-bottom: 10px;">⚠️ Prescription Needed</h2>
+                <p style="color:var(--secondary); margin-bottom: 20px;">One or more items in your cart require a valid doctor's prescription.</p>
+                <div style="border: 2px dashed #cbd5e1; padding: 30px; text-align: center; border-radius: 12px; background: #f8fafc;">
+                    <label style="font-weight:bold; color:var(--primary);">Upload Prescription Images:</label><br>
+                    <small id="rxHelpText" style="color: var(--secondary); display: block; margin-bottom: 15px;">You can select multiple photos if needed.</small>
+                    <input type="file" id="rxFile" accept="image/*" multiple style="font-size: 1rem;" onchange="updateFilePreview()">
+                    <div id="filePreview" class="file-list-preview"></div>
+                </div>
+                <button class="btn-primary" style="width:100%; margin-top:20px; padding:1.2rem;" onclick="confirmRx()">Continue to Delivery →</button>
+            </div>
+
+            <div id="step-delivery" class="checkout-step">
+                <h2 style="margin-bottom: 1.5rem;">Delivery Address</h2>
+                <label style="font-weight:600; color: var(--text); margin-bottom:12px; display:block;">Select an Address:</label>
+                <div id="checkoutAddressOptions" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px;"></div> 
+                <label style="font-weight:600; color: var(--text); margin-bottom:8px; display:block;">Or Ship to a New Address:</label>
+                <textarea id="shipAddress" class="pay-input" placeholder="Type new delivery address here..." rows="3"></textarea>
+                <button class="btn-primary" style="width:100%; margin-top:25px; padding:1.2rem;" onclick="confirmDelivery()">Continue to Payment →</button>
+            </div>
+
+            <div id="step-payment" class="checkout-step">
+                <h2 style="margin-bottom: 1.5rem;">Payment Method</h2>
+                <div class="payment-methods">
+                    <div class="pm-badge selected" onclick="togglePayment('upi', this)">📱 UPI / QR</div>
+                    <div class="pm-badge" onclick="togglePayment('card', this)">💳 Credit Card</div>
+                    <div class="pm-badge" onclick="togglePayment('cod', this)">💵 Cash on Delivery</div>
+                </div>
+                <div id="pay-upi" class="payment-form" style="text-align:center; padding:20px; background:#f8fafc; border-radius:12px; border:1px solid var(--border);">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/d/d0/QR_code_for_mobile_English_Wikipedia.svg" alt="UPI QR Code" style="width: 150px; height: 150px; border-radius: 8px; border: 4px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                    <p style="margin-top:10px; font-weight:600; color:var(--text);">Scan with GPay, PhonePe, or Paytm</p>
+                </div>
+                <div id="pay-card" class="payment-form" style="display:none;">
+                    <input type="text" id="ccNumber" class="pay-input" placeholder="Card Number (16 digits)" maxlength="16" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+                    <div class="pay-inputs-row">
+                        <input type="text" id="ccExpiry" class="pay-input" placeholder="Expiry (MM/YY)" maxlength="5" oninput="this.value=this.value.replace(/[^0-9\/]/g,''); if(this.value.length===2 && !this.value.includes('/')) this.value+='/';">
+                        <input type="password" id="ccCvv" class="pay-input" placeholder="CVV (3 digits)" maxlength="3" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+                    </div>
+                </div>
+                <div id="pay-cod" class="payment-form" style="display:none; text-align:center; padding:30px; background:#f0fdf4; border-radius:12px; border:1px solid #bbf7d0;">
+                    <p style="font-size:1.2rem; color:var(--success); font-weight:800;">✅ Cash on Delivery Selected</p>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 25px 0 15px 0; padding-top:20px; border-top: 2px dashed var(--border);">
+                    <span style="font-size: 1.2rem; font-weight: 600;">Total Amount:</span>
+                    <strong id="payAmount" style="font-size: 1.8rem; color: var(--primary); font-weight:900;">₹0.00</strong>
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-outline" style="padding: 1.2rem; flex: 0.3;" onclick="goBackToDelivery()">← Back</button>
+                    <button class="btn-success" style="padding: 1.2rem; flex: 1; font-size: 1.1rem;" onclick="processPayment(this)">Confirm Order</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/shared.js"></script>
+    <script>
+        let cart = JSON.parse(sessionStorage.getItem('medCart')) || [];
+        cart = cart.filter(c => c && c.name); 
+
+        let uploadedRxImages = []; 
+        let activeCategoryFilter = 'All'; 
+        let searchTimeout; 
+        let localInventory = [];
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.quickview-modal, .checkout-modal, .rx-modal').forEach(m => m.style.display = 'none');
+            }
+        });
+        window.addEventListener('click', function(e) {
+            if (e.target.classList.contains('quickview-modal') || e.target.classList.contains('rx-modal')) {
+                e.target.style.display = 'none';
+            }
+        });
+
+        function updateHeaderCount() {
+            const count = cart.reduce((total, item) => total + item.cartQty, 0);
+            const badge = document.getElementById('cartCount');
+            if (count > 0) { badge.innerText = count; badge.classList.add('active'); } 
+            else { badge.classList.remove('active'); }
+        }
+
+        async function initApp() {
+            const session = getSession(); let authHTML = '';
+            if (session) {
+                document.getElementById('userInfo').innerText = `Hi, ${session.username}`;
+                document.getElementById('myOrdersBtn').style.display = 'inline-block';
+                document.getElementById('myProfileBtn').style.display = 'inline-block'; 
+                if (session.role === 'admin') authHTML += `<button class="btn-ghost" onclick="window.location.href='dashboard.html'">Admin</button>`;
+                authHTML += `<button class="btn-ghost danger" onclick="logout()">Logout</button>`;
+            } else {
+                document.getElementById('authButtons').innerHTML = `<button class="btn-primary" onclick="window.location.href='login.html'">Sign In</button>`;
+            }
+            document.getElementById('authButtons').innerHTML = authHTML || document.getElementById('authButtons').innerHTML;
+            
+            updateHeaderCount();
+            localInventory = await API.getInventory();
+            renderStore();
+        }
+
+        function showView(viewId) {
+            window.scrollTo(0, 0);
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+            
+            document.getElementById('nav-home').classList.remove('active-tab');
+            if(document.getElementById('myOrdersBtn')) document.getElementById('myOrdersBtn').classList.remove('active-tab');
+            if(document.getElementById('myProfileBtn')) document.getElementById('myProfileBtn').classList.remove('active-tab');
+            if(document.getElementById('nav-cart')) document.getElementById('nav-cart').classList.remove('active-tab');
+            
+            if(viewId === 'store-view') document.getElementById('nav-home').classList.add('active-tab');
+            if(viewId === 'orders-view' && document.getElementById('myOrdersBtn')) document.getElementById('myOrdersBtn').classList.add('active-tab');
+            if(viewId === 'profile-view' && document.getElementById('myProfileBtn')) document.getElementById('myProfileBtn').classList.add('active-tab');
+            if(viewId === 'cart-view' && document.getElementById('nav-cart')) document.getElementById('nav-cart').classList.add('active-tab');
+            
+            if(viewId === 'cart-view') renderCart();
+            if(viewId === 'orders-view') renderUserOrders();
+            if(viewId === 'profile-view') renderProfile(); 
+        }
+
+        function setCategory(catName, btnElement) {
+            activeCategoryFilter = catName;
+            document.querySelectorAll('.chip').forEach(el => el.classList.remove('active'));
+            btnElement.classList.add('active'); renderStore();
+        }
+
+        function handleSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => { renderStore(); }, 250);
+        }
+
+        function renderStore() {
+            const searchInput = document.getElementById('searchBar').value.toLowerCase().trim();
+            const sortVal = document.getElementById('sortFilter') ? document.getElementById('sortFilter').value : 'default';
+            const grid = document.getElementById('productGrid'); 
+            
+            let filteredList = localInventory.filter(med => {
+                const matchesSearch = !searchInput || 
+                                      med.name.toLowerCase().includes(searchInput) ||
+                                      (med.category && med.category.toLowerCase().includes(searchInput)) ||
+                                      (med.manufacturer && med.manufacturer.toLowerCase().includes(searchInput));
+                const matchesCat = activeCategoryFilter === 'All' || med.category === activeCategoryFilter;
+                return matchesSearch && matchesCat;
+            });
+
+            if (sortVal === 'price-low') filteredList.sort((a,b) => parseFloat(a.price) - parseFloat(b.price));
+            if (sortVal === 'price-high') filteredList.sort((a,b) => parseFloat(b.price) - parseFloat(a.price));
+
+            if (filteredList.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 50px 20px; background: white; border-radius: 16px; border: 2px dashed var(--border);">
+                        <div style="font-size: 3rem; margin-bottom: 15px;">🔍</div>
+                        <h2 style="margin-bottom: 10px; color: var(--text);">No medicines found</h2>
+                        <p style="color: var(--secondary);">We couldn't find anything matching "<strong>${searchInput}</strong>".<br>Try searching by medicine name, brand, or category.</p>
+                        <button class="btn-outline" style="margin-top: 20px;" onclick="document.getElementById('searchBar').value=''; renderStore();">Clear Search</button>
+                    </div>`;
+                return;
+            }
+
+            let htmlString = "";
+            filteredList.forEach(med => {
+                const rxBadge = med.requiresRx ? `<div class="rx-badge">Prescription Needed</div>` : '';
+                htmlString += `
+                    <div class="card" style="display: flex; flex-direction: column; height: 100%;">
+                        <div class="card-img-container" onclick="openQuickView('${med.medId}')">
+                            ${rxBadge}
+                            <img src="${med.image}" class="card-img" style="object-fit:cover;" loading="lazy">
+                        </div>
+                        <div class="card-content" style="display: flex; flex-direction: column; flex-grow: 1;">
+                            <div style="flex-grow: 1;">
+                                <h3 onclick="openQuickView('${med.medId}')" style="cursor:pointer;">${med.name}</h3>
+                                <div class="mfg">By ${med.manufacturer}</div>
+                            </div>
+                            <div class="price" style="margin-top: 10px;">₹${parseFloat(med.price).toFixed(2)}</div>
+                            <button class="btn-outline" style="width:100%; margin-top:10px; transition: all 0.3s ease;" ${med.qty<=0 ? 'disabled' : ''} onclick="addToCart('${med.medId}', this)">
+                                ${med.qty<=0 ? 'Out of Stock' : 'Add to Cart'}
+                            </button>
+                        </div>
+                    </div>`;
+            });
+            grid.innerHTML = htmlString;
+        }
+
+        function openQuickView(medId) {
+            const med = localInventory.find(m => String(m.medId) === String(medId));
+            if(!med) return;
+            
+            document.getElementById('qvImg').src = med.image;
+            document.getElementById('qvName').innerText = med.name;
+            
+            const rxContainer = document.getElementById('qvRxContainer');
+            if(med.requiresRx) {
+                rxContainer.innerHTML = `<span class="rx-label-small">Prescription Needed</span>`;
+            } else {
+                rxContainer.innerHTML = '';
+            }
+
+            let stockHtml = '';
+            if(med.qty <= 0) stockHtml = `<span class="stock-out">Out of Stock</span>`;
+            else if(med.qty < 10) stockHtml = `<span class="stock-low">Only ${med.qty} left in stock</span>`;
+            else stockHtml = `<span class="stock-in">In Stock</span>`;
+            
+            document.getElementById('qvStock').innerHTML = stockHtml;
+            document.getElementById('qvExpiry').innerText = med.expiry || 'N/A';
+            document.getElementById('qvPrice').innerText = `₹${parseFloat(med.price).toFixed(2)}`;
+            
+            const addBtn = document.getElementById('qvAddToCartBtn');
+            const buyBtn = document.getElementById('qvBuyNowBtn');
+            
+            addBtn.innerText = med.qty<=0 ? "Out of Stock" : "Add to Cart"; 
+            addBtn.disabled = med.qty<=0;
+            buyBtn.disabled = med.qty<=0;
+            
+            addBtn.onclick = function() { addToCart(med.medId, this); };
+            buyBtn.onclick = function() { 
+                addToCart(med.medId, null); 
+                document.getElementById('quickViewModal').style.display='none'; 
+                showView('cart-view'); 
+            };
+            
+            document.getElementById('quickViewModal').style.display = 'flex';
+        }
+
+        function addToCart(medId, btnElement) {
+            const med = localInventory.find(m => String(m.medId) === String(medId));
+            if(!med) return;
+            
+            const existing = cart.find(c => String(c.medId) === String(medId));
+            let currentCartQty = existing ? existing.cartQty : 0;
+
+            if (currentCartQty >= med.qty) {
+                showToast(`Sorry, only ${med.qty} available in stock!`, "warning");
+                if (btnElement) {
+                    btnElement.innerText = "Out of Stock";
+                    btnElement.disabled = true;
+                }
+                return;
+            }
+
+            if (existing) existing.cartQty++;
+            else cart.push({ ...med, cartQty: 1 });
+            
+            sessionStorage.setItem('medCart', JSON.stringify(cart));
+            updateHeaderCount();
+            
+            if(btnElement) {
+                const originalText = btnElement.innerText;
+                btnElement.innerText = "Added!";
+                
+                if ((currentCartQty + 1) >= med.qty) {
+                    setTimeout(() => { 
+                        btnElement.innerText = "Out of Stock"; 
+                        btnElement.disabled = true; 
+                    }, 1000);
+                } else {
+                    setTimeout(() => { btnElement.innerText = originalText; }, 1000);
+                }
+            }
+        }
+
+        function updateQty(index, delta) {
+            cart[index].cartQty += delta;
+            if (cart[index].cartQty < 1) cart.splice(index, 1);
+            sessionStorage.setItem('medCart', JSON.stringify(cart));
+            updateHeaderCount();
+            renderCart();
+        }
+
+        function renderCart() {
+            const tbody = document.getElementById('cartTableBody'); 
+            let total = 0; let htmlString = "";
+            cart.forEach((item, i) => {
+                total += item.price * item.cartQty;
+                htmlString += `<tr>
+                    <td><strong>${item.name || 'Medicine'}</strong> ${item.requiresRx ? '<span class="rx-label-small">Prescription Needed</span>' : ''}</td>
+                    <td>₹${parseFloat(item.price).toFixed(2)}</td>
+                    <td>
+                        <div class="qty-controls">
+                            <button class="qty-btn" onclick="updateQty(${i}, -1)">-</button>
+                            <span style="font-weight:bold;">${item.cartQty}</span>
+                            <button class="qty-btn" onclick="updateQty(${i}, 1)">+</button>
+                        </div>
+                    </td>
+                    <td style="color:var(--primary); font-weight:bold;">₹${(item.price * item.cartQty).toFixed(2)}</td>
+                    <td><button class="btn-outline" style="color:red; border-color:red;" onclick="cart.splice(${i},1); sessionStorage.setItem('medCart', JSON.stringify(cart)); updateHeaderCount(); renderCart();">X</button></td>
+                </tr>`;
+            });
+            tbody.innerHTML = htmlString;
+            document.getElementById('cartTotal').innerText = total.toFixed(2);
+        }
+
+        async function openCheckout() {
+            if (cart.length === 0) return showToast("Cart is empty", "error");
+            if (!getSession()) return window.location.href = 'login.html?redirect=cart';
+            
+            await loadCheckoutAddresses();
+            document.getElementById('checkoutModal').style.display = 'flex';
+            document.querySelectorAll('.checkout-step').forEach(e => e.classList.remove('active'));
+            
+            const rxItemsCount = cart.filter(i => i.requiresRx).length;
+            
+            if (rxItemsCount > 0) { 
+                document.getElementById('rxHelpText').innerText = `You have ${rxItemsCount} medicine(s) requiring a prescription. Please upload up to ${rxItemsCount} image(s).`;
+                document.getElementById('step-rx').classList.add('active'); 
+            } 
+            else { 
+                document.getElementById('step-delivery').classList.add('active'); 
+            }
+            document.getElementById('payAmount').innerText = '₹' + document.getElementById('cartTotal').innerText;
+        }
+
+        function updateFilePreview() {
+            const files = document.getElementById('rxFile').files;
+            const preview = document.getElementById('filePreview');
+            
+            const maxAllowedRx = cart.filter(item => item.requiresRx).length;
+            
+            if (files.length > maxAllowedRx) {
+                showToast(`Error: You only need ${maxAllowedRx} prescription(s).`, "error");
+                document.getElementById('rxFile').value = ''; 
+                preview.style.display = 'none';
+                return;
+            }
+
+            if(files.length > 0) {
+                preview.style.display = 'block';
+                preview.innerHTML = `✅ <strong>${files.length}</strong> image(s) selected`;
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+
+        function compressImage(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = event => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 1200; 
+                        let scaleSize = MAX_WIDTH / img.width;
+                        if(scaleSize > 1) scaleSize = 1; 
+                        canvas.width = img.width * scaleSize;
+                        canvas.height = img.height * scaleSize;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        resolve(canvas.toDataURL('image/jpeg', 0.8)); 
+                    }
+                }
+            });
+        }
+        
+        async function confirmRx() {
+            const files = document.getElementById('rxFile').files;
+            if (files.length === 0) return showToast("Please select at least one image.", "error");
+            
+            uploadedRxImages = [];
+            for (let i = 0; i < files.length; i++) {
+                let compressedBase64 = await compressImage(files[i]);
+                uploadedRxImages.push(compressedBase64);
+            }
+            
+            document.getElementById('step-rx').classList.remove('active'); 
+            document.getElementById('step-delivery').classList.add('active');
+        }
+
+        function confirmDelivery() {
+            let address = document.getElementById('shipAddress').value.trim();
+            if(!address) return showToast("Please select or enter an address.", "error");
+            document.getElementById('step-delivery').classList.remove('active'); 
+            document.getElementById('step-payment').classList.add('active');
+        }
+        
+        function goBackToDelivery() {
+            document.getElementById('step-payment').classList.remove('active'); 
+            document.getElementById('step-delivery').classList.add('active');
+        }
+
+        function togglePayment(method, el) {
+            document.querySelectorAll('.pm-badge').forEach(e => e.classList.remove('selected')); el.classList.add('selected');
+            document.querySelectorAll('.payment-form').forEach(e => e.style.display = 'none');
+            document.getElementById('pay-' + method).style.display = 'block';
+        }
+
+        async function loadCheckoutAddresses() {
+            const session = getSession(); 
+            const [users] = await Promise.all([API.getUsers()]);
+            const me = users.find(u => u.username === session.username);
+            const container = document.getElementById('checkoutAddressOptions'); 
+            let htmlString = "";
+            document.getElementById('shipAddress').value = ""; 
+
+            if (me && me.addresses && me.addresses.length > 0) {
+                me.addresses.forEach((addr, idx) => { 
+                    const isSelected = idx === 0 ? "selected" : "";
+                    if(idx === 0) document.getElementById('shipAddress').value = addr;
+                    htmlString += `<div class="address-card ${isSelected}" onclick="selectAddress(this, '${addr}')">📍 ${addr}</div>`; 
+                });
+            } else {
+                htmlString = "<p style='color:var(--secondary); font-size: 0.9rem; margin-bottom:10px;'>No saved addresses found.</p>";
+            }
+            container.innerHTML = htmlString;
+        }
+
+        async function processPayment(btnElement) {
+            let address = document.getElementById('shipAddress').value.trim();
+            const activeMethod = document.querySelector('.pm-badge.selected').innerText.trim();
+            
+            if (activeMethod.includes("Credit Card")) {
+                const ccNum = document.getElementById('ccNumber').value;
+                const ccExp = document.getElementById('ccExpiry').value;
+                const ccCvv = document.getElementById('ccCvv').value;
+                
+                if (ccNum.length < 16) return showToast("Invalid Card Number. Must be 16 digits.", "error");
+                if (!ccExp.match(/^(0[1-9]|1[0-2])\/?([0-9]{2})$/)) return showToast("Invalid Expiry Date (MM/YY format needed)", "error");
+                if (ccCvv.length < 3) return showToast("Invalid CVV. Must be 3 digits.", "error");
+            }
+
+            if (cart.some(i => i.requiresRx) && uploadedRxImages.length === 0) {
+                return showToast("Prescription is missing! Please refresh and try again.", "error");
+            }
+
+            btnElement.innerText = "Processing... ⏳";
+            btnElement.disabled = true;
+
+            const session = getSession(); 
+            const [users] = await Promise.all([API.getUsers()]);
+
+            let me = users.find(u => u.username === session.username);
+            let userUpdated = false;
+            if (me && (!me.addresses || !me.addresses.includes(address))) {
+                if(!me.addresses) me.addresses = [];
+                if(me.addresses.length < 5) me.addresses.push(address);
+                userUpdated = true; 
+            }
+
+            const orderId = 'ORD' + Date.now().toString().slice(-6);
+            
+            const newOrder = {
+                id: orderId, date: new Date().toLocaleString(), user: session.username, address: address || 'Default', 
+                items: cart.map(c => `${c.name || 'Medicine'} (x${c.cartQty || 1})`).join(', '), total: parseFloat(document.getElementById('cartTotal').innerText),
+                status: cart.some(i => i.requiresRx) ? 'Verifying Prescription' : 'Accepted', paymentMethod: activeMethod, 
+                rxImages: uploadedRxImages.length > 0 ? uploadedRxImages : null
+            };
+
+            const saveTasks = [
+                API.addSale(newOrder), 
+                API.updateStock(cart.map(c => ({ medId: c.medId, cartQty: c.cartQty })))
+            ];
+            if(userUpdated) saveTasks.push(API.updateUser(me));
+            
+            await Promise.all(saveTasks);
+            
+            cart = []; sessionStorage.removeItem('medCart'); uploadedRxImages = [];
+            localInventory = await API.getInventory();
+            
+            updateHeaderCount();
+            document.getElementById('checkoutModal').style.display = 'none';
+            
+            btnElement.innerText = "Confirm Order"; 
+            btnElement.disabled = false;
+            
+            showToast("Order Placed Successfully!", "success"); 
+            showView('orders-view');
+        }
+
+        async function renderUserOrders() {
+            const sales = await API.getSales(); const tbody = document.getElementById('userOrdersBody'); 
+            const mySales = sales.filter(s => s.user === getSession().username).reverse();
+            let htmlString = "";
+            mySales.forEach(s => {
+                htmlString += `<tr>
+                    <td><strong style="color:var(--primary); font-size:1.1rem;">${s.id}</strong><br><small>${s.date}</small></td>
+                    <td>${s.items || 'N/A'}<br><small style="color:var(--primary); font-weight:bold;">💳 ${s.paymentMethod || 'Online'}</small></td>
+                    <td>₹${parseFloat(s.total).toFixed(2)}</td>
+                    <td>
+                        <strong>${s.status}</strong>
+                        ${s.rejectReason ? `<div class="status-reason">❌ Reason: ${s.rejectReason}</div>` : ''}
+                    </td>
+                </tr>`;
+            });
+            tbody.innerHTML = htmlString;
+        }
+
+        async function renderProfile() {
+            const me = (await API.getUsers()).find(u => u.username === getSession().username);
+            if(me) {
+                document.getElementById('profUsername').value = me.username; 
+                document.getElementById('profFullName').value = me.fullName || ''; 
+                document.getElementById('profEmail').value = me.email || ''; 
+                document.getElementById('profMobile').value = me.mobile || '';
+                const list = document.getElementById('profileAddressList'); 
+                let htmlString = "";
+                if(me.addresses && me.addresses.length > 0) {
+                    me.addresses.forEach((addr, i) => { htmlString += `<div style="padding:10px; border:1px solid var(--border); border-radius:6px; margin-bottom:8px; display:flex; justify-content:space-between;"><span>${addr}</span> <button onclick="deleteAddress(${i})" style="color:red; background:none; border:none; cursor:pointer; font-weight:bold;">X</button></div>`; });
+                } else { htmlString = "<small style='color:gray;'>No addresses saved yet.</small>"; }
+                list.innerHTML = htmlString;
+            }
+        }
+
+        async function addNewAddress() {
+            const text = document.getElementById('newProfileAddress').value.trim(); if(!text) return;
+            const me = (await API.getUsers()).find(u => u.username === getSession().username);
+            if(!me.addresses) me.addresses = [];
+            if(me.addresses.length >= 5) return showToast("Maximum 5 addresses allowed", "error");
+            me.addresses.push(text);
+            await API.updateUser(me); document.getElementById('newProfileAddress').value = ''; renderProfile(); showToast("Address Saved!", "success");
+        }
+
+        async function deleteAddress(idx) {
+            const me = (await API.getUsers()).find(u => u.username === getSession().username);
+            me.addresses.splice(idx, 1); await API.updateUser(me); renderProfile();
+        }
+
+        async function saveProfile() {
+            const fullName = document.getElementById('profFullName').value; 
+            const email = document.getElementById('profEmail').value; 
+            const mobile = document.getElementById('profMobile').value;
+            await API.updateUser({ username: getSession().username, fullName, email, mobile }); 
+            showToast("Profile Updated!", "success");
+        }
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>

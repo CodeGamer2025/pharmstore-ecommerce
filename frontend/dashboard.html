@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PharmStore - Admin Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .chart-filters { display: flex; gap: 10px; margin-bottom: 15px; }
+        .chart-btn { padding: 6px 12px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; font-size: 0.9rem; transition: 0.2s;}
+        .chart-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .btn-reject { background: #fee2e2; color: #b91c1c; border: 1px solid #f87171; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.2s; }
+        .btn-reject:hover { background: #fca5a5; }
+        
+        .pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding: 15px; background: white; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        .page-btn { padding: 10px 20px; border-radius: 8px; border: 1px solid var(--border); background: #f8fafc; cursor: pointer; font-weight: bold; color: var(--text); transition: 0.2s; }
+        .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .page-btn:not(:disabled):hover { background: var(--primary); color: white; border-color: var(--primary); }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-nav">
+                <h3>🏥 Admin Panel</h3>
+                <button class="nav-btn active" onclick="showAdminSection('analytics-section', this)"><span>📈 Dashboard</span></button>
+                <button class="nav-btn" onclick="showAdminSection('inventory-section', this)"><span>📦 Inventory</span></button>
+                <button class="nav-btn" onclick="showAdminSection('sales-section', this)"><span>📊 Orders</span><span id="pendingBadge" class="nav-badge" style="display:none;">0</span></button>
+            </div>
+            <div class="sidebar-bottom">
+                <button class="btn-storefront" onclick="window.location.href='index.html'">View Storefront</button>
+                <button class="btn-danger" style="width:100%;" onclick="logout()">Logout</button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div style="flex:1;">
+                
+                <div id="analytics-section" class="admin-section active">
+                    <h2 style="margin-bottom: 2rem;">Dashboard Overview</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card" style="border-color: var(--success);"><h4>Total Revenue</h4><p id="statRevenue">₹0.00</p></div>
+                        <div class="stat-card" style="border-color: var(--warning);"><h4>Pending Approvals</h4><p id="statPending">0</p></div>
+                        <div class="stat-card" style="border-color: var(--danger);"><h4>Low Stock Items (<10)</h4><p id="statLowStock" style="color: var(--danger);">0</p></div>
+                    </div>
+                    
+                    <div class="table-container" style="margin-bottom: 2rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h3 style="color: var(--secondary); margin: 0;">Sales Trends Analysis</h3>
+                            <div class="chart-filters">
+                                <button class="chart-btn active" onclick="setChartFrame('daily', this)">Daily</button>
+                                <button class="chart-btn" onclick="setChartFrame('weekly', this)">Weekly</button>
+                                <button class="chart-btn" onclick="setChartFrame('monthly', this)">Monthly</button>
+                            </div>
+                        </div>
+                        <canvas id="salesChart" height="80"></canvas>
+                    </div>
+                </div>
+
+                <div id="inventory-section" class="admin-section">
+                    <h2>Inventory Management</h2>
+                    <div class="table-container" style="margin-top: 1.5rem;">
+                        <h3 style="margin-bottom: 1rem;" id="formTitle">➕ Add New Medicine</h3>
+                        <form id="addMedForm">
+                            <input type="hidden" id="editIdField">
+                            <div class="form-row">
+                                <div class="form-group"><label>Medicine Name</label><input type="text" id="mName" required></div>
+                                <div class="form-group"><label>Manufacturer</label><input type="text" id="mBrand" required></div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group"><label>MRP (₹)</label><input type="number" id="mMCA" step="0.01" required></div>
+                                <div class="form-group"><label>Selling Price (₹)</label><input type="number" id="mPrice" step="0.01" required></div>
+                                <div class="form-group"><label>Stock</label><input type="number" id="mQty" required></div>
+                                <div class="form-group"><label>Expiry Date</label><input type="date" id="mExpiry" required></div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Category</label>
+                                    <select id="mCategory" required>
+                                        <option>Fever & Pain</option>
+                                        <option>Cough & Cold</option>
+                                        <option>Antibiotics</option>
+                                        <option>Diabetes</option>
+                                        <option>Heart Care</option>
+                                        <option>Blood Pressure</option>
+                                    </select>
+                                </div>
+                                <div class="form-group"><label>Image URL</label><input type="text" id="mImage" placeholder="Paste image link here..."></div>
+                            </div>
+                            <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 10px; background: #fffbeb; padding: 10px; border-radius: 6px;">
+                                <input type="checkbox" id="mRx" style="width: 20px; height: 20px;"><label for="mRx" style="font-weight:bold; color:var(--danger);">Requires Doctor's Prescription</label>
+                            </div>
+                            <div style="display:flex; gap:10px;">
+                                <button type="submit" id="submitMedBtn" class="btn-primary" style="padding: 1rem; flex:1;">Save to Database</button>
+                                <button type="button" id="cancelEditBtn" class="btn-outline" style="padding: 1rem; display:none;" onclick="cancelEdit()">Cancel Edit</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="table-container">
+                        <table><thead><tr><th>Medicine Info</th><th>Pricing & Exp</th><th>Stock</th><th>Action</th></tr></thead><tbody id="imsTable"></tbody></table>
+                    </div>
+                </div>
+
+                <div id="sales-section" class="admin-section">
+                    <h2>Customer Orders Review</h2>
+                    <div class="table-container" style="margin-top: 1.5rem;">
+                        <table><thead><tr><th>Order Details</th><th>Customer & Delivery</th><th>Items & Payment Info</th><th>Prescription</th><th>Action</th></tr></thead><tbody id="salesTable"></tbody></table>
+                    </div>
+                    
+                    <div class="pagination" id="salesPagination" style="display:none;">
+                        <button class="page-btn" id="prevPageBtn" onclick="changePage(-1)">← Previous Page</button>
+                        <span id="pageInfo" style="font-weight: 700; color: var(--primary); font-size: 1.1rem;">Page 1 of 1</span>
+                        <button class="page-btn" id="nextPageBtn" onclick="changePage(1)">Next Page →</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="rxModal" class="rx-modal">
+        <div class="rx-modal-content">
+            <button onclick="document.getElementById('rxModal').classList.remove('active')" style="position:absolute; top:10px; right:15px; border:none; background:#f1f5f9; width:35px; height:35px; border-radius:50%; font-size:1.2rem; cursor:pointer; color:var(--secondary);">✕</button>
+            <h3 style="margin-bottom: 15px; color: var(--primary);">Customer Prescription(s)</h3>
+            <img id="rxModalImg" src="" alt="Customer Prescription">
+            <div class="rx-gallery-controls" id="rxControls" style="display:none;">
+                <button class="rx-gallery-btn" id="rxPrevBtn" onclick="prevRx()">← Prev</button>
+                <span class="rx-counter" id="rxCounter">1 / 1</span>
+                <button class="rx-gallery-btn" id="rxNextBtn" onclick="nextRx()">Next →</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="rejectModal" class="checkout-modal">
+        <div class="checkout-content" style="max-width: 400px; text-align: center;">
+            <button onclick="closeRejectModal()" style="position:absolute; top:15px; right:15px; border:none; background:none; font-size:1.5rem; cursor:pointer; color:var(--secondary);">✕</button>
+            <h2 style="color:var(--danger); margin-bottom: 15px;">Reject Order</h2>
+            <p style="margin-bottom: 15px; color:var(--secondary);">Please provide a reason for rejecting this order:</p>
+            <input type="text" id="rejectReasonInput" class="pay-input" placeholder="e.g., Invalid Prescription, Out of Stock" style="margin-bottom: 20px;">
+            <button class="btn-danger" style="width:100%; padding:12px; font-size:1.1rem;" onclick="confirmRejectOrder()">Confirm Rejection</button>
+        </div>
+    </div>
+
+    <script src="js/shared.js"></script>
+    <script>
+        let editModeId = null; 
+        let salesChartInstance = null;
+        let currentChartFrame = 'daily';
+        
+        let currentRxGallery = [];
+        let currentRxIndex = 0;
+        
+        let currentPage = 1;
+        const ordersPerPage = 10;
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                document.getElementById('rxModal').classList.remove('active');
+                document.getElementById('rejectModal').style.display = 'none';
+            }
+        });
+        window.addEventListener('click', function(e) {
+            if (e.target.classList.contains('rx-modal')) {
+                e.target.classList.remove('active');
+            }
+        });
+
+        window.onload = async function() {
+            const session = getSession(); if (!session || session.role !== 'admin') { window.location.href = 'index.html'; return; }
+            await refreshDashboard();
+        };
+
+        async function refreshDashboard() { 
+            [localInventoryData, localSalesData, localUsersData] = await Promise.all([
+                API.getInventory(),
+                API.getSales(),
+                API.getUsers()
+            ]);
+
+            renderIMS(); 
+            renderSales(); 
+            updateAnalytics(); 
+        }
+
+        function showAdminSection(id, btn) {
+            document.querySelectorAll('.admin-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.sidebar .nav-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(id).classList.add('active'); btn.classList.add('active');
+        }
+
+        function setChartFrame(frame, btnElement) {
+            currentChartFrame = frame;
+            document.querySelectorAll('.chart-btn').forEach(b => b.classList.remove('active'));
+            btnElement.classList.add('active');
+            updateAnalytics(); 
+        }
+
+        function updateAnalytics() {
+            let revenue = 0; let pendingCount = 0; const chartDataMap = {};
+            localSalesData.forEach(s => {
+                if (s.status === 'Accepted') {
+                    revenue += parseFloat(s.total);
+                    let dateObj = new Date(s.date); let key = "";
+                    if (currentChartFrame === 'daily') { key = dateObj.toLocaleDateString(); } 
+                    else if (currentChartFrame === 'weekly') {
+                        let day = dateObj.getDay(), diff = dateObj.getDate() - day + (day == 0 ? -6:1);
+                        let monday = new Date(dateObj.setDate(diff)); key = "Week of " + monday.toLocaleDateString();
+                    } else if (currentChartFrame === 'monthly') { key = dateObj.toLocaleString('default', { month: 'short', year: 'numeric' }); }
+                    chartDataMap[key] = (chartDataMap[key] || 0) + parseFloat(s.total);
+                }
+                if (s.status === 'Verifying Prescription') pendingCount++;
+            });
+
+            document.getElementById('statRevenue').innerText = '₹' + revenue.toFixed(2);
+            document.getElementById('statPending').innerText = pendingCount;
+            document.getElementById('statLowStock').innerText = localInventoryData.filter(i => parseInt(i.qty) < 10).length;
+            
+            const badge = document.getElementById('pendingBadge');
+            badge.style.display = pendingCount > 0 ? 'inline-block' : 'none'; badge.innerText = pendingCount;
+
+            renderChart(chartDataMap);
+        }
+
+        function renderChart(salesData) {
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            const labels = Object.keys(salesData); const dataValues = Object.values(salesData);
+            if (salesChartInstance) salesChartInstance.destroy();
+            salesChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: labels.length ? labels : ['No Sales Data'], datasets: [{ label: `Revenue (₹) - ${currentChartFrame.toUpperCase()}`, data: dataValues.length ? dataValues : [0], backgroundColor: '#10847e', borderRadius: 4 }] },
+                options: { responsive: true, scales: { y: { beginAtZero: true } } }
+            });
+        }
+
+        function renderIMS() {
+            const tbody = document.getElementById('imsTable'); 
+            let htmlString = "";
+            localInventoryData.forEach(med => {
+                htmlString += `<tr>
+                    <td><img src="${med.image}" style="width:40px;height:40px;border-radius:4px;vertical-align:middle; object-fit:cover;" loading="lazy"> <strong>${med.name}</strong></td>
+                    <td>₹${parseFloat(med.price).toFixed(2)}</td>
+                    <td style="color:${med.qty<10?'red':'green'}; font-weight:bold;">${med.qty}</td>
+                    <td>
+                        <button onclick="editMed('${med.medId}')" class="btn-outline" style="padding:4px 8px; margin-right:5px;">Edit</button>
+                        <button onclick="deleteMed('${med.medId}')" class="btn-outline" style="color:red; border-color:red; padding:4px 8px;">Remove</button>
+                    </td>
+                </tr>`;
+            });
+            tbody.innerHTML = htmlString;
+        }
+
+        function editMed(medId) {
+            const med = localInventoryData.find(m => String(m.medId) === String(medId));
+            if (!med) return;
+
+            editModeId = med.medId; 
+            document.getElementById('mName').value = med.name || ''; document.getElementById('mBrand').value = med.manufacturer || '';
+            document.getElementById('mMCA').value = med.mrp || ''; document.getElementById('mPrice').value = med.price || '';
+            document.getElementById('mQty').value = med.qty || 0; document.getElementById('mExpiry').value = med.expiry || '';
+            document.getElementById('mCategory').value = med.category || 'Fever & Pain'; document.getElementById('mImage').value = med.image || ''; 
+            document.getElementById('mRx').checked = med.requiresRx || false;
+
+            document.getElementById('formTitle').innerText = "✏️ Edit Medicine: " + med.name;
+            document.getElementById('submitMedBtn').innerText = "Update Medicine"; document.getElementById('submitMedBtn').style.backgroundColor = "var(--warning)";
+            document.getElementById('cancelEditBtn').style.display = "block";
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function cancelEdit() {
+            editModeId = null; document.getElementById('addMedForm').reset();
+            document.getElementById('formTitle').innerText = "➕ Add New Medicine";
+            document.getElementById('submitMedBtn').innerText = "Save to Database"; document.getElementById('submitMedBtn').style.backgroundColor = "var(--primary)";
+            document.getElementById('cancelEditBtn').style.display = "none";
+        }
+
+        document.getElementById('addMedForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const medData = {
+                name: document.getElementById('mName').value, manufacturer: document.getElementById('mBrand').value,
+                mrp: parseFloat(document.getElementById('mMCA').value), price: parseFloat(document.getElementById('mPrice').value),
+                qty: parseInt(document.getElementById('mQty').value), expiry: document.getElementById('mExpiry').value,
+                category: document.getElementById('mCategory').value, image: document.getElementById('mImage').value, requiresRx: document.getElementById('mRx').checked
+            };
+            if (editModeId) {
+                const index = localInventoryData.findIndex(i => String(i.medId) === String(editModeId));
+                if (index !== -1) { 
+                    medData.medId = editModeId; 
+                    localInventoryData[index] = { ...localInventoryData[index], ...medData }; 
+                }
+                showToast("Medicine Updated Successfully!", 'success'); cancelEdit();
+            } else {
+                medData.medId = "m" + Date.now().toString(); 
+                localInventoryData.push(medData); 
+                showToast("Medicine Added Successfully!", 'success'); this.reset();
+            }
+            renderIMS();
+            API.saveInventory(localInventoryData); 
+        });
+
+        async function deleteMed(medId) {
+            if(!confirm("Delete this item?")) return;
+            localInventoryData = localInventoryData.filter(i => String(i.medId) !== String(medId));
+            renderIMS(); 
+            showToast("Medicine Removed!", 'success');
+            API.saveInventory(localInventoryData); 
+        }
+
+        function viewPrescription(saleId) { 
+            const sale = localSalesData.find(s => s.id === saleId);
+            if (sale) {
+                currentRxGallery = sale.rxImages ? sale.rxImages : (sale.rxImage ? [sale.rxImage] : []);
+                if (currentRxGallery.length > 0) {
+                    currentRxIndex = 0;
+                    updateGalleryView();
+                    document.getElementById('rxModal').classList.add('active'); 
+                }
+            }
+        }
+
+        function updateGalleryView() {
+            document.getElementById('rxModalImg').src = currentRxGallery[currentRxIndex];
+            const controls = document.getElementById('rxControls');
+            if (currentRxGallery.length > 1) {
+                controls.style.display = 'flex';
+                document.getElementById('rxCounter').innerText = `${currentRxIndex + 1} / ${currentRxGallery.length}`;
+                document.getElementById('rxPrevBtn').disabled = currentRxIndex === 0;
+                document.getElementById('rxNextBtn').disabled = currentRxIndex === currentRxGallery.length - 1;
+            } else { controls.style.display = 'none'; }
+        }
+
+        function nextRx() { if (currentRxIndex < currentRxGallery.length - 1) { currentRxIndex++; updateGalleryView(); } }
+        function prevRx() { if (currentRxIndex > 0) { currentRxIndex--; updateGalleryView(); } }
+
+        async function updateStatus(orderId, newStatus, reason = '') {
+            let order = localSalesData.find(s => String(s.id) === String(orderId));
+            if(order) {
+                order.status = newStatus; 
+                if(reason) order.rejectReason = reason;
+                renderSales(); 
+                updateAnalytics(); 
+                
+                if (newStatus === 'Rejected') { showToast(`Order Rejected!`, 'error'); } 
+                else { showToast(`Order ${newStatus}!`, 'success'); }
+                
+                await API.updateOrderStatus(orderId, newStatus, reason); 
+            }
+        }
+
+        let currentRejectId = null;
+        function openRejectModal(id) {
+            currentRejectId = id;
+            document.getElementById('rejectReasonInput').value = '';
+            document.getElementById('rejectModal').style.display = 'flex';
+        }
+        function closeRejectModal() {
+            document.getElementById('rejectModal').style.display = 'none';
+            currentRejectId = null;
+        }
+        function confirmRejectOrder() {
+            const reason = document.getElementById('rejectReasonInput').value.trim();
+            if(!reason) return showToast("Please enter a reason", "error");
+            updateStatus(currentRejectId, 'Rejected', reason);
+            closeRejectModal();
+        }
+
+        function renderSales() {
+            const tbody = document.getElementById('salesTable'); 
+            let htmlString = "";
+            
+            const reversedSales = localSalesData.slice().reverse();
+            
+            const totalPages = Math.ceil(reversedSales.length / ordersPerPage) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+            
+            const startIndex = (currentPage - 1) * ordersPerPage;
+            const endIndex = startIndex + ordersPerPage;
+            const paginatedSales = reversedSales.slice(startIndex, endIndex);
+
+            paginatedSales.forEach(sale => {
+                const userObj = localUsersData.find(u => u.username === sale.user); 
+                const phone = userObj && userObj.mobile ? userObj.mobile : 'N/A';
+                const displayCustomerName = (userObj && userObj.fullName) ? userObj.fullName : sale.user;
+                
+                const hasImages = (sale.rxImages && sale.rxImages.length > 0) || sale.rxImage;
+                const imageCount = (sale.rxImages && sale.rxImages.length > 0) ? ` (${sale.rxImages.length})` : '';
+                
+                let rxBtn = '';
+                if (hasImages) {
+                    rxBtn = `<button class="btn-primary" onclick="viewPrescription('${sale.id}')">📄 View Rx${imageCount}</button>`;
+                } else {
+                    if (sale.status === 'Verifying Prescription') {
+                        rxBtn = `<span style="color:var(--danger); font-weight:800; background:#fee2e2; padding:4px 8px; border-radius:4px; border:1px solid #fca5a5;">⚠️ Missing Rx</span>`;
+                    } else {
+                        rxBtn = `<span style="color:var(--secondary); font-weight:600;">Not Required</span>`;
+                    }
+                }
+                
+                let actionHTML = '';
+                if (sale.status === 'Verifying Prescription') {
+                    actionHTML = `
+                        <div style="display:flex; gap:8px;">
+                            <button class="btn-success" onclick="updateStatus('${sale.id}', 'Accepted')">Accept</button>
+                            <button class="btn-reject" onclick="openRejectModal('${sale.id}')">Reject</button>
+                        </div>
+                    `;
+                } else if (sale.status === 'Rejected') {
+                    actionHTML = `<strong style="color:var(--danger);">Rejected</strong>`;
+                } else {
+                    actionHTML = `<strong style="color:var(--success);">Accepted</strong>`;
+                }
+
+                htmlString += `<tr>
+                    <td><strong style="color:var(--primary); font-size:1.1rem;">${sale.id}</strong><br><small>${sale.date}</small><br><strong>₹${parseFloat(sale.total).toFixed(2)}</strong></td>
+                    <td><strong>${displayCustomerName}</strong><br><small>📞 ${phone}</small><br><small>📍 ${sale.address || 'N/A'}</small></td>
+                    <td style="line-height:1.5;">${sale.items || 'N/A'}<br><span style="display:inline-block; margin-top:5px; padding:3px 6px; background:#f1f5f9; border-radius:4px; font-size:0.8rem; font-weight:bold; color:var(--primary);">Payment: ${sale.paymentMethod || 'Online'}</span></td>
+                    <td>${rxBtn}</td>
+                    <td>${actionHTML}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = htmlString;
+            
+            if (reversedSales.length > 0) {
+                document.getElementById('salesPagination').style.display = 'flex';
+                document.getElementById('pageInfo').innerText = `Page ${currentPage} of ${totalPages} (${reversedSales.length} Total Orders)`;
+                document.getElementById('prevPageBtn').disabled = currentPage === 1;
+                document.getElementById('nextPageBtn').disabled = currentPage === totalPages;
+            } else {
+                document.getElementById('salesPagination').style.display = 'none';
+            }
+        }
+        
+        function changePage(direction) {
+            currentPage += direction;
+            renderSales();
+            document.querySelector('.main-content').scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
