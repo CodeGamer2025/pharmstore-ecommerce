@@ -7,7 +7,18 @@ require('dotenv').config();
 
 const app = express();
 
-app.use(cors()); 
+// ==========================================
+// 🛡️ THE FIX: CLOUD SECURITY (CORS) VIP LIST
+// ==========================================
+app.use(cors({
+    origin: [
+        'http://localhost:5500', 
+        'http://127.0.0.1:5500',
+        'https://parthiv-ims-project.netlify.app' // Your exact new Netlify link!
+    ],
+    credentials: true
+}));
+
 app.use(express.json({ limit: '50mb' })); 
 
 // Safely pulls the link from your hidden .env file
