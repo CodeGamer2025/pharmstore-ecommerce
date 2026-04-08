@@ -1,4 +1,4 @@
-const SERVER_URL = 'http://localhost:5000/api'; 
+const SERVER_URL = 'https://pharmstore-ecommerce.onrender.com/api';
 
 function getSession() { 
     try {
