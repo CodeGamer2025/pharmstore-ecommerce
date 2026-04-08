@@ -112,5 +112,5 @@ To test the standard Customer flow, please register a new account via the storef
 
 ## 👨‍💻 Author
 
-**Parthiv Rathod**
+**Parthiv Dilipsinh Rathod**
 * Computer Science & Engineering 
