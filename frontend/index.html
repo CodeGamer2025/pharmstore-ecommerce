@@ -11,7 +11,7 @@
         .pay-input:focus { border-color: var(--primary); }
         .address-card { border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: 0.2s; background: white; position: relative; }
         .address-card.selected { border: 2px solid var(--primary); background: #f0fdfa; }
-        .address-card.selected::after { content: '✓ Default'; position: absolute; right: 15px; top: 15px; font-size: 0.7rem; background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; }
+        .address-card.selected::after { content: '✓ Selected'; position: absolute; right: 15px; top: 15px; font-size: 0.75rem; background: var(--primary); color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold;}
         .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start; }
         @media (max-width: 768px) { .profile-grid { grid-template-columns: 1fr; } .pay-inputs-row { flex-direction: column; } }
         .card { will-change: transform; transform: translateZ(0); }
@@ -129,7 +129,7 @@
                 </div>
                 <div style="background: white; padding: 2.5rem; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid var(--border);">
                     <h3 style="margin-bottom: 1.5rem; color: var(--primary);">📍 My Saved Addresses</h3>
-                    <p style="color:var(--secondary); font-size:0.9rem; margin-bottom: 1rem;">You can save up to 5 delivery addresses.</p>
+                    <p style="color:var(--secondary); font-size:0.9rem; margin-bottom: 1rem;">You can save up to 5 delivery addresses. The top address is your default.</p>
                     <div id="profileAddressList" style="margin-bottom: 1.5rem;"></div>
                     <div class="form-group">
                         <label>Add New Address</label>
@@ -251,7 +251,13 @@
                 <label style="font-weight:600; color: var(--text); margin-bottom:12px; display:block;">Select an Address:</label>
                 <div id="checkoutAddressOptions" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px;"></div> 
                 <label style="font-weight:600; color: var(--text); margin-bottom:8px; display:block;">Or Ship to a New Address:</label>
-                <textarea id="shipAddress" class="pay-input" placeholder="Type new delivery address here..." rows="3"></textarea>
+                <textarea id="shipAddress" class="pay-input" placeholder="Type new delivery address here..." rows="3" oninput="clearSelection()"></textarea>
+                
+                <div style="margin-top: 10px; font-size: 0.9rem;">
+                    <input type="checkbox" id="saveAsDefaultCheckout" style="margin-right: 5px; cursor:pointer;">
+                    <label for="saveAsDefaultCheckout" style="cursor:pointer; color:var(--secondary); font-weight:500;">Save as my default address for future orders</label>
+                </div>
+
                 <button class="btn-primary" style="width:100%; margin-top:25px; padding:1.2rem;" onclick="confirmDelivery()">Continue to Payment →</button>
             </div>
 
@@ -298,6 +304,9 @@
         let activeCategoryFilter = 'All'; 
         let searchTimeout; 
         let localInventory = [];
+        
+        // NEW: Track which address they clicked in checkout
+        let selectedCheckoutAddress = "";
 
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
@@ -605,7 +614,9 @@
 
         function confirmDelivery() {
             let address = document.getElementById('shipAddress').value.trim();
-            if(!address) return showToast("Please select or enter an address.", "error");
+            // If they didn't type a new address, ensure they clicked a card
+            if(!address && !selectedCheckoutAddress) return showToast("Please select or enter an address.", "error");
+            
             document.getElementById('step-delivery').classList.remove('active'); 
             document.getElementById('step-payment').classList.add('active');
         }
@@ -621,28 +632,54 @@
             document.getElementById('pay-' + method).style.display = 'block';
         }
 
+        // NEW: Handles clicking an address card in checkout
+        function selectAddress(addressText) {
+            selectedCheckoutAddress = addressText;
+            document.getElementById('shipAddress').value = ""; // Clear text box
+            loadCheckoutAddresses(); // Re-render to show green border
+        }
+
+        // NEW: Un-clicks cards if user starts typing a new address
+        function clearSelection() {
+            if(document.getElementById('shipAddress').value.trim() !== "") {
+                selectedCheckoutAddress = "";
+                loadCheckoutAddresses();
+            }
+        }
+
         async function loadCheckoutAddresses() {
             const session = getSession(); 
             const [users] = await Promise.all([API.getUsers()]);
             const me = users.find(u => u.username === session.username);
             const container = document.getElementById('checkoutAddressOptions'); 
             let htmlString = "";
-            document.getElementById('shipAddress').value = ""; 
 
             if (me && me.addresses && me.addresses.length > 0) {
+                // If nothing is selected yet, default to their top address
+                if (!selectedCheckoutAddress && document.getElementById('shipAddress').value.trim() === "") {
+                    selectedCheckoutAddress = me.addresses[0];
+                }
+
                 me.addresses.forEach((addr, idx) => { 
-                    const isSelected = idx === 0 ? "selected" : "";
-                    if(idx === 0) document.getElementById('shipAddress').value = addr;
-                    htmlString += `<div class="address-card ${isSelected}" onclick="selectAddress(this, '${addr}')">📍 ${addr}</div>`; 
+                    const isSelected = (addr === selectedCheckoutAddress) ? "selected" : "";
+                    const isDefault = (idx === 0) ? " <span style='color:var(--primary); font-size:0.8rem; margin-left:5px;'>(Default)</span>" : "";
+                    htmlString += `<div class="address-card ${isSelected}" onclick="selectAddress('${addr.replace(/'/g, "\\'")}')">📍 ${addr}${isDefault}</div>`; 
                 });
             } else {
+                selectedCheckoutAddress = "";
                 htmlString = "<p style='color:var(--secondary); font-size: 0.9rem; margin-bottom:10px;'>No saved addresses found.</p>";
             }
             container.innerHTML = htmlString;
         }
 
         async function processPayment(btnElement) {
-            let address = document.getElementById('shipAddress').value.trim();
+            let typedAddress = document.getElementById('shipAddress').value.trim();
+            let saveAsDefault = document.getElementById('saveAsDefaultCheckout').checked;
+            
+            // Determine final address: Typed overrides clicked
+            let finalAddress = typedAddress !== "" ? typedAddress : selectedCheckoutAddress;
+            if(!finalAddress) return showToast("Please select or enter a delivery address.", "error");
+
             const activeMethod = document.querySelector('.pm-badge.selected').innerText.trim();
             
             if (activeMethod.includes("Credit Card")) {
@@ -667,16 +704,31 @@
 
             let me = users.find(u => u.username === session.username);
             let userUpdated = false;
-            if (me && (!me.addresses || !me.addresses.includes(address))) {
+            
+            // NEW: Amazon-style save logic
+            if (me) {
                 if(!me.addresses) me.addresses = [];
-                if(me.addresses.length < 5) me.addresses.push(address);
-                userUpdated = true; 
+                
+                // If it's a totally new address
+                if (!me.addresses.includes(finalAddress)) {
+                    if (saveAsDefault) me.addresses.unshift(finalAddress); // Save to top
+                    else me.addresses.push(finalAddress); // Save to bottom
+                    
+                    if(me.addresses.length > 5) me.addresses.length = 5; // Cap at 5
+                    userUpdated = true; 
+                } 
+                // If it exists, but they checked "Make Default"
+                else if (saveAsDefault && me.addresses[0] !== finalAddress) {
+                    me.addresses = me.addresses.filter(a => a !== finalAddress);
+                    me.addresses.unshift(finalAddress);
+                    userUpdated = true;
+                }
             }
 
             const orderId = 'ORD' + Date.now().toString().slice(-6);
             
             const newOrder = {
-                id: orderId, date: new Date().toLocaleString(), user: session.username, address: address || 'Default', 
+                id: orderId, date: new Date().toLocaleString(), user: session.username, address: finalAddress || 'Default', 
                 items: cart.map(c => `${c.name || 'Medicine'} (x${c.cartQty || 1})`).join(', '), total: parseFloat(document.getElementById('cartTotal').innerText),
                 status: cart.some(i => i.requiresRx) ? 'Verifying Prescription' : 'Accepted', paymentMethod: activeMethod, 
                 rxImages: uploadedRxImages.length > 0 ? uploadedRxImages : null
@@ -730,11 +782,37 @@
                 document.getElementById('profMobile').value = me.mobile || '';
                 const list = document.getElementById('profileAddressList'); 
                 let htmlString = "";
+                
+                // NEW: Profile Address rendering with Default badges and Set Default buttons
                 if(me.addresses && me.addresses.length > 0) {
-                    me.addresses.forEach((addr, i) => { htmlString += `<div style="padding:10px; border:1px solid var(--border); border-radius:6px; margin-bottom:8px; display:flex; justify-content:space-between;"><span>${addr}</span> <button onclick="deleteAddress(${i})" style="color:red; background:none; border:none; cursor:pointer; font-weight:bold;">X</button></div>`; });
+                    me.addresses.forEach((addr, i) => { 
+                        const isDefault = (i === 0);
+                        htmlString += `
+                            <div style="padding:12px; border:1px solid var(--border); border-radius:8px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; background:${isDefault ? '#f0fdf4' : 'white'}; border-color:${isDefault ? 'var(--success)' : 'var(--border)'};">
+                                <div style="flex-grow:1;">
+                                    <span style="font-weight:${isDefault ? '600' : '400'};">📍 ${addr}</span>
+                                    ${isDefault ? '<span class="rx-label-small" style="color:var(--success); border-color:var(--success); background:#dcfce7; margin-left:10px;">✔ Default</span>' : ''}
+                                </div>
+                                <div style="display:flex; gap:10px; align-items:center;">
+                                    ${!isDefault ? `<button onclick="makeAddressDefault(${i})" class="btn-outline" style="padding:6px 12px; font-size:0.8rem;">Set Default</button>` : ''}
+                                    <button onclick="deleteAddress(${i})" style="color:red; background:none; border:none; cursor:pointer; font-size:1.2rem; line-height:1; font-weight:bold;">✕</button>
+                                </div>
+                            </div>
+                        `; 
+                    });
                 } else { htmlString = "<small style='color:gray;'>No addresses saved yet.</small>"; }
                 list.innerHTML = htmlString;
             }
+        }
+
+        // NEW: Function to bump an address to the top (making it default)
+        async function makeAddressDefault(idx) {
+            const me = (await API.getUsers()).find(u => u.username === getSession().username);
+            const chosen = me.addresses.splice(idx, 1)[0];
+            me.addresses.unshift(chosen); // Put it at the front
+            await API.updateUser(me);
+            renderProfile();
+            showToast("Default Address Updated!", "success");
         }
 
         async function addNewAddress() {
@@ -742,8 +820,13 @@
             const me = (await API.getUsers()).find(u => u.username === getSession().username);
             if(!me.addresses) me.addresses = [];
             if(me.addresses.length >= 5) return showToast("Maximum 5 addresses allowed", "error");
+            
+            // New addresses from profile save to bottom. They can click "Set Default" to move it up.
             me.addresses.push(text);
-            await API.updateUser(me); document.getElementById('newProfileAddress').value = ''; renderProfile(); showToast("Address Saved!", "success");
+            await API.updateUser(me); 
+            document.getElementById('newProfileAddress').value = ''; 
+            renderProfile(); 
+            showToast("Address Saved!", "success");
         }
 
         async function deleteAddress(idx) {
